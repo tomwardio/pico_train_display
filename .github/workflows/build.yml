@@ -1,0 +1,52 @@
+name: Build
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        path: main
+    - name: Checkout MicroPython
+      uses: actions/checkout@v4
+      with: 
+        repository: micropython/micropython
+        ref: refs/tags/v1.21.0
+        path: micropython
+    - name: Install build tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake gcc-arm-none-eabi \
+          libnewlib-arm-none-eabi build-essential
+    - name: Build Cross-compiler
+      run: |
+        pushd micropython
+        make -C mpy-cross
+        popd
+    - name: Get MicroPython submodules
+      run: |
+        pushd micropython
+        make -C ports/rp2 BOARD=RPI_PICO_W submodules
+        popd
+    - name: Build MicroPython with manifest.
+      run: |
+        pushd micropython
+        cd ports/rp2
+        make -j 4 BOARD=RPI_PICO_W FROZEN_MANIFEST=../../../../main/manifest.py
+        popd
+    - name: Rename UF2
+      run: |
+        pushd micropython
+        mv ports/rp2/build-RPI_PICO_W/firmware.uf2 \
+          ports/rp2/build-RPI_PICO_W/pico_train_display.uf2
+        popd
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: pico_train_display
+        path: micropython/ports/rp2/build-RPI_PICO_W/pico_train_display.uf2
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: micropython/ports/rp2/build-RPI_PICO_W/pico_train_display.uf2

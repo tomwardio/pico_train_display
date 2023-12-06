@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pico Train Display Setup</title>
+</head>
+<script>
+  async function onSubmit(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+
+    const request = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.fromEntries(data)),
+      redirect: "follow",
+    }
+    const response = await fetch(form.action, request);
+    console.log(response)
+    if (response.ok) {
+      document.getElementById("result").innerHTML = "Saved configuration!";
+    } else {
+      document.getElementById("result").innerHTML = await response.text();
+    }
+    return response;
+  }
+</script>
+<h1>Pico Train Display Setup</h1>
+<form id="form" action="/submit" onsubmit="onSubmit(event)" method="post">
+  <table>
+    <tr>
+      <th colspan=2>
+        <h2>WiFi Settings</h2>
+      </th>
+    </tr>
+    <tr>
+      <td><label for="wifi[ssid]">Network name:</label></td>
+      <td><input type="text" id="wifi[ssid]" name="wifi[ssid]" required></td>
+    </tr>
+    <tr>
+      <td><label for="wifi[password]">Password:</label></td>
+      <td>
+        <input type="password" id="wifi[password]" name="wifi[password]" placeholder="Enter password">
+      </td>
+    </tr>
+
+    <tr>
+      <th colspan=2>
+        <h2>Realtime Trains API Settings</h2>
+      </th>
+    </tr>
+    <tr>
+      <td colspan=2>
+        Visit <a href="https://api.rtt.io/">https://api.rtt.io/</a> to register
+        and obtain an API login.
+      </td>
+    </tr>
+    <tr>
+      <td><label for="rtt[username]">Username:</label></td>
+      <td><input type="text" id="rtt[username]" name="rtt[username]" required></td>
+    </tr>
+    <tr>
+      <td><label for="rtt[password]">Password:</label></td>
+      <td>
+        <input type="password" id="rtt[password]" name="rtt[password]" placeholder="Enter password" required>
+      </td>
+    </tr>
+    <tr>
+      <td><label for="rtt[update_interval]:int">Update interval (in seconds):</label></td>
+      <td>
+        <input type="number" id="rtt[update_interval]:int" name="rtt[update_interval]:int" value=20 required>
+      </td>
+    </tr>
+
+    <tr>
+      <th colspan=2>
+        <h2>Train Options</h2>
+      </th>
+    </tr>
+    <tr>
+      <td colspan=2>
+        Visit <a href=https://en.wikipedia.org/wiki/UK_railway_stations>wikipedia</a>
+        to find the 3-letter station code.
+      </td>
+    <tr>
+      <td><label for="station">Station (3-letter code):</label></td>
+      <td><input type="text" id="station" name="station" required></td>
+    </tr>
+    <tr>
+      <td><label for="destination">Destination (3-letter code):</label></td>
+      <td><input type="text" id="destination" name="destination" required></td>
+    </tr>
+    <tr>
+      <td><label for="min_departure_time:int">Minimum departure time (mins):</label></td>
+      <td><input type="text" id="min_departure_time:int" name="min_departure_time:int" value=0 required></td>
+    </tr>
+
+    <tr>
+      <th colspan=2>
+        <h2>Display Options</h2>
+      </th>
+    </tr>
+    <tr>
+      <td><label for="display[flip]:bool">Flip display:</label></td>
+      <td><input type="checkbox" id="display[flip]:bool" name="display[flip]:bool"></td>
+    </tr>
+    <tr>
+      <td><label for="display[active_time]">Active time (optional):</label></td>
+      <td><input type="text" id="display[active_time]" name="display[active_time]"></td>
+    </tr>
+
+    <tr>
+      <th colspan=2>
+        <h2>Advanced</h2>
+      </th>
+    </tr>
+    <tr>
+      <td><label for="display[type]">Display type:</label></td>
+      <td>
+        <select id="display[type]" name="display[type]">
+          <option value="ssd1322">SSD 1322</option>
+          <option value="epd29b">ePaper 2.9 Model B</option>
+        </select>
+      </td>
+    </tr>
+    <tr>
+      <td><label for="display[refresh]:int">Refresh rate (per second):</label></td>
+      <td><input type="number" id="display[refresh]:int" name="display[refresh]:int" value=30 required></td>
+    </tr>
+    <tr>
+      <td><label for="debug[log]:bool">Save debug logs:</label></td>
+      <td><input type="checkbox" id="debug[log]:bool" name="debug[log]:bool"></td>
+    </tr>
+  </table>
+  <br>
+  <tr>
+    <td><input type="submit" value="Save Settings"></td>
+    <td>
+      <p id="result"></p>
+    </td>
+  </tr>
+</form>
+
+</html>
