@@ -1,0 +1,20 @@
+{
+  "destination": "",
+  "station": "",
+  "wifi": {
+    "ssid": "",
+    "password": ""
+  }, 
+  "rtt": {
+    "username": "",
+    "password": "", 
+    "update_interval": 20
+  },
+  "display": {
+    "refresh": 30,
+    "type": "ssd1322",
+    "flip": false,
+    "active_time": ""
+  },
+  "debug_log": false
+}
