@@ -81,6 +81,10 @@ async def _get_trains(
                   for d in location['destination']
               ],
               'gbttBookedDeparture': location['gbttBookedDeparture'],
+              'origin': [
+                  {'publicTime': origin['publicTime']}
+                  for origin in location['origin']
+              ],
           },
           'serviceUid': service['serviceUid'],
           'runDate': service['runDate'],

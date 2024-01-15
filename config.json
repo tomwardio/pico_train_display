@@ -6,6 +6,7 @@
     "password": ""
   }, 
   "rtt": {
+    "endpoint": "https://api.rtt.io/api/v1/json",
     "username": "",
     "password": "", 
     "update_interval": 20

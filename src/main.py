@@ -195,6 +195,7 @@ def run(config: config_module.Config):
     departure_updater = trains.DepartureUpdater(
         config.station,
         config.destination,
+        config.rtt.endpoint,
         trains.make_basic_auth(
             username=config.rtt.username,
             password=config.rtt.password,
@@ -336,4 +337,4 @@ if __name__ == '__main__':
 
     # Hard reset device to reset RAM. Although this should be unnecessary,
     # residual, fragmented memory seems to still exist.
-    machine.reset()
+    # machine.reset()

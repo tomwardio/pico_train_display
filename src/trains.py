@@ -32,7 +32,6 @@ import _thread
 import utils
 
 
-_RTT_ENDPOINT = 'https://api.rtt.io/api/v1/json'
 _REQUEST_TIMEOUT = 10
 _MAXRESPONSE_SIZE = 40 * 1024
 
@@ -276,12 +275,13 @@ def get_departures(
     station: str,
     destination: str,
     basic_auth: str,
+    endpoint: str,
     min_departure_time: int = 0,
     buffer: memoryview | None = None,
     ssl_context: ssl.SSLContext | None = None,
 ) -> Station:
   """Requests set of departures from->to provided stations."""
-  url = _RTT_ENDPOINT + '/search/{station}/to/{destination}'.format(
+  url = endpoint + '/search/{station}/to/{destination}'.format(
       station=station,
       destination=destination,
   )
@@ -334,11 +334,13 @@ class DepartureUpdater:
       self,
       station: str,
       destination: str,
+      endpoint: str,
       auth: str,
       min_departure_time: int,
   ):
     self._station = station
     self._destination = destination
+    self._endpoint = endpoint
     self._auth = auth
     self._min_departure_time = min_departure_time
 
@@ -354,6 +356,7 @@ class DepartureUpdater:
         self._station,
         self._destination,
         self._auth,
+        self._endpoint,
         self._min_departure_time,
         self._memoryview,
         self._ssl_context,

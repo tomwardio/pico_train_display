@@ -21,11 +21,13 @@
 import display
 import time_range
 
-
 class RttConfig:
   """Real-time trains configuration."""
 
-  def __init__(self, username: str, password: str, update_interval: int):
+  def __init__(
+      self, endpoint: str, username: str, password: str, update_interval: int
+  ):
+    self.endpoint = endpoint
     self.username = username
     self.password = password
     self.update_interval = update_interval
