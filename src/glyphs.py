@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Tom Ward
+# Copyright (c) 2024 Tom Ward
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of
 # this software and associated documentation files (the "Software"), to deal in
@@ -16,13 +16,39 @@
 # COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 # IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-"""Collection of assets baked as Python modules.
+"""Icons class that wraps up a font_to_python module."""
 
-These can be optionally added as frozen modules to the Pico firmware, reducing 
-RAM consumption."""
+import framebuf
+import uctypes
 
-from . import dot_matrix_regular
-from . import dot_matrix_bold
-from . import dot_matrix_bold_tall
+import assets
 
-from . import fast_train_icon
+
+class Glyph:
+  """Helper class that wraps data_to_py module.
+
+  Provides helper functions for rendering glyphs into a given display."""
+
+  def __init__(self, glyph):
+    self._glyph = glyph
+    self._framebuf = framebuf.FrameBuffer(
+        uctypes.bytearray_at(
+            uctypes.addressof(glyph.data()), len(glyph.data())
+        ),
+        glyph.width(),
+        glyph.height(),
+        framebuf.GS8,
+    )
+
+  def render_glyph(
+      self, framebuffer: framebuf.FrameBuffer, x: int, y: int
+  ) -> None:
+    """Renders glyph into the provided display at position [x, y]."""
+    framebuffer.blit(self._framebuf, x, y, -1)
+
+  def max_bounds(self) -> tuple[int, int]:
+    """Returns the max bounds for Glyph."""
+    return self._glyph.width(), self._glyph.height()
+
+
+FAST_TRAIN_ICON = Glyph(assets.fast_train_icon)

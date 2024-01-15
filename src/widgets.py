@@ -20,6 +20,7 @@
 
 import display
 import fonts
+import glyphs
 import trains
 
 
@@ -163,19 +164,24 @@ class DepartureWidget(Widget):
       font: fonts.Font,
       width: int,
       status_font: fonts.Font | None = None,
+      fast_train_icon: glyphs.Glyph | None = None,
   ):
     super().__init__(screen)
     self._font = font
     self._width = width
     self._status_font = status_font if status_font else font
+    self._fast_train_icon = fast_train_icon
     self._max_clock_width = self._font.calculate_bounds('00:00')[0]
 
     self._last_departure = None
 
   def bounds(self) -> tuple[int, int]:
-    return self._width, max(
+    max_height = max(
         self._font.max_bounds()[1], self._status_font.max_bounds()[1]
     )
+    if self._fast_train_icon:
+      max_height = max(max_height, self._fast_train_icon.max_bounds()[1])
+    return self._width, max_height
 
   def render(
       self, departure: trains.Departure | None, x: int, y: int, w: int, h: int
@@ -193,6 +199,9 @@ class DepartureWidget(Widget):
     self._font.render_text(departure_time, self._screen, x, y)
 
     x += self._max_clock_width + 4
+    if departure.fast_train and self._fast_train_icon:
+      self._fast_train_icon.render_glyph(self._screen, x, y)
+      x += self._fast_train_icon.max_bounds()[0] + 2
     self._font.render_text(departure.destination, self._screen, x, y)
 
     if departure.cancelled:
@@ -220,6 +229,7 @@ class MainWidget(Widget):
       tall_font: fonts.Font,
       default_font: fonts.Font,
       render_seconds: bool = True,
+      fast_train_icon: glyphs.Glyph | None = None,
   ):
     super().__init__(screen)
     self._departure_updater = departure_updater
@@ -244,6 +254,7 @@ class MainWidget(Widget):
               bold_font if i == 0 else default_font,
               screen.width,
               default_font,
+              fast_train_icon,
           )
       )
 

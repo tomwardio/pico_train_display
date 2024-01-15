@@ -34,9 +34,9 @@ import ntptime
 import config as config_module
 import display
 import fonts
+import glyphs
 import logging
 from setup import server
-import time_range
 import trains
 import utils
 import widgets
@@ -132,6 +132,7 @@ def _render_thread(
         fonts.DEFAULT_FONT,
         # Don't render seconds on e-paper displays.
         render_seconds=(config.display.type != 'epd29b'),
+        fast_train_icon=glyphs.FAST_TRAIN_ICON,
     )
     non_active = widgets.MessageWidget(
         screen, _DISPLAY_NOT_ACTIVE, fonts.DEFAULT_FONT
