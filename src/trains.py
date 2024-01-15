@@ -225,11 +225,13 @@ class Departure:
       departure_time: int,
       actual_departure_time: int,
       cancelled: bool,
+      fast_train: bool,
   ):
     self._destination = destination
     self._departure_time = departure_time
     self._actual_departure_time = actual_departure_time
     self._cancelled = cancelled
+    self._fast_train = fast_train
 
   @property
   def destination(self) -> str:
@@ -247,15 +249,20 @@ class Departure:
   def cancelled(self) -> bool:
     return self._cancelled
 
+  @property
+  def fast_train(self) -> bool:
+    return self._fast_train
+
   def __repr__(self) -> str:
     return (
         'Departure(destination="{}", departure_time={},'
-        'actual_departure_tume={}, cancelled={})'
+        'actual_departure_tume={}, cancelled={}, fast={})'
     ).format(
         self.destination,
         self.departure_time,
         self.actual_departure_time,
         self.cancelled,
+        self.fast_train,
     )
 
   def __eq__(self, other: object) -> bool:
@@ -265,6 +272,7 @@ class Departure:
         and self.actual_departure_time == other.actual_departure_time
         and self.cancelled == other.cancelled
         and self.destination == other.destination
+        and self.fast_train == other.fast_train
     )
 
 
@@ -276,9 +284,11 @@ def get_departures(
     destination: str,
     basic_auth: str,
     endpoint: str,
+    *,
     min_departure_time: int = 0,
     buffer: memoryview | None = None,
     ssl_context: ssl.SSLContext | None = None,
+    slow_stations: set[str] | None = None,
 ) -> Station:
   """Requests set of departures from->to provided stations."""
   url = endpoint + '/search/{station}/to/{destination}'.format(
@@ -317,8 +327,20 @@ def get_departures(
       if now + (min_departure_time * 60) > full_departure_datetime:
         continue
 
+    fast_train = False
+    calling_stations = set(service.get('callingAt', None))
+    if slow_stations and calling_stations:
+      if len(calling_stations.intersection(slow_stations)) == 0:
+        fast_train = True
+
     departures.append(
-        Departure(destination, departure_time, realtime_departure, cancelled)
+        Departure(
+            destination,
+            departure_time,
+            realtime_departure,
+            cancelled,
+            fast_train,
+        )
     )
 
   results = Station(response_json['location']['name'], departures)
@@ -337,12 +359,15 @@ class DepartureUpdater:
       endpoint: str,
       auth: str,
       min_departure_time: int,
+      *,
+      slow_stations: set[str] | None = None,
   ):
     self._station = station
     self._destination = destination
     self._endpoint = endpoint
     self._auth = auth
     self._min_departure_time = min_departure_time
+    self._slow_stations = slow_stations
 
     self._lock = _thread.allocate_lock()
     self._departures = Station(station, tuple())
@@ -357,9 +382,10 @@ class DepartureUpdater:
         self._destination,
         self._auth,
         self._endpoint,
-        self._min_departure_time,
-        self._memoryview,
-        self._ssl_context,
+        slow_stations=self._slow_stations,
+        min_departure_time=self._min_departure_time,
+        buffer=self._memoryview,
+        ssl_context=self._ssl_context,
     )
     with self._lock:
       self._departures = departures

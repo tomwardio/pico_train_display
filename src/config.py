@@ -21,6 +21,7 @@
 import display
 import time_range
 
+
 class RttConfig:
   """Real-time trains configuration."""
 
@@ -96,11 +97,13 @@ class Config:
       wifi: WifiConfig,
       rtt: RttConfig,
       display: DisplayConfig,
+      slow_station: str | None = None,
       min_departure_time: int = 0,
       debug: DebugConfig = DebugConfig(),
   ):
     self.destination = destination
     self.station = station
+    self.slow_station = slow_station if slow_station else None
     self.wifi = wifi
     self.rtt = rtt
     self.display = display
@@ -113,6 +116,10 @@ class Config:
       raise ValueError(f'Invalid destination! destination={self.destination}')
     if len(self.station) != 3:
       raise ValueError(f'Invalid station! station={self.station}')
+    if self.slow_station is not None and len(self.slow_station) != 3:
+      raise ValueError(
+          f'Invalid slow station! slow_station={self.slow_station}'
+      )
     self.wifi.validate()
     self.rtt.validate()
     self.display.validate()

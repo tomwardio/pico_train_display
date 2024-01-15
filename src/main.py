@@ -192,6 +192,7 @@ def run(config: config_module.Config):
   thread_running = _thread.allocate_lock()
   try:
     main_running.acquire()
+    slow_stations = set([config.slow_station]) if config.slow_station else None
     departure_updater = trains.DepartureUpdater(
         config.station,
         config.destination,
@@ -200,6 +201,7 @@ def run(config: config_module.Config):
             username=config.rtt.username,
             password=config.rtt.password,
         ),
+        slow_stations=slow_stations,
         min_departure_time=config.min_departure_time,
     )
     gc.collect()
@@ -337,4 +339,4 @@ if __name__ == '__main__':
 
     # Hard reset device to reset RAM. Although this should be unnecessary,
     # residual, fragmented memory seems to still exist.
-    # machine.reset()
+    machine.reset()
