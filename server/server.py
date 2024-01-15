@@ -89,6 +89,11 @@ async def _get_trains(
           'serviceUid': service['serviceUid'],
           'runDate': service['runDate'],
       }
+
+      if destination := service.get('destination'):
+        out_service['destination'] = [
+            {'description': d['description']} for d in location['destination']
+        ]
       if cancelled := location.get('cancelReasonCode'):
         out_service['locationDetail']['cancelReasonCode'] = cancelled
       if realtime_departure := location.get('realtimeDeparture'):

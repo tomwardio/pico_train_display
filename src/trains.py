@@ -315,8 +315,11 @@ def get_departures(
   for service in services:
     location = service['locationDetail']
 
+    # Iff the service is cancelled, service['destination'] is populated. 
+    # Otherwise use location['destination'].
+    destinations = service.get('destination', location['destination'])
     # We could have multiple destinations, so concatentate them together.
-    destination = ','.join([d['description'] for d in location['destination']])
+    destination = ','.join([d['description'] for d in destinations])
     departure_time = int(location['gbttBookedDeparture'])
     realtime_departure = int(location.get('realtimeDeparture', departure_time))
     cancelled = location.get('cancelReasonCode') is not None
