@@ -19,7 +19,8 @@
 """Basic webserver to filter response and include calling at stations."""
 
 import asyncio
-from typing import Any
+from collections import OrderedDict
+from typing import Any, Sequence
 
 import aiohttp
 import logging
@@ -28,19 +29,47 @@ from flask import Flask
 
 _MAX_ATTEMPTS = 3
 _RTT_ENDPOINT = 'https://api.rtt.io/api/v1/json'
+_MAX_CACHED_CALLING_AT_STATIONS = 256
 
-app = Flask(__name__)
+
+class TrainFlask(Flask):
+
+  def __init__(self, name: str):
+    super().__init__(name)
+    self._calling_at_cache = OrderedDict()
+
+  def get_calling_at(self, uid: str, date: str):
+    key = f'{uid}_{date}'
+    value = self._calling_at_cache.get(key)
+    if value is not None:
+      self._calling_at_cache.move_to_end(key)
+    return value
+
+  def add_calling_at(self, uid, date, stations: Sequence[str]):
+    key = f'{uid}_{date}'
+    self._calling_at_cache[key] = stations
+    self._calling_at_cache.move_to_end(key)
+    if len(self._calling_at_cache) > _MAX_CACHED_CALLING_AT_STATIONS:
+      self._calling_at_cache.popitem(last=False)
+
+
+app = TrainFlask(__name__)
 
 
 async def _get_calling_at(session: aiohttp.ClientSession, uid: str, date: str):
+  if cached_result := app.get_calling_at(uid, date):
+    return uid, cached_result
+
   yyyy, mm, dd = date.split('-')
   async with session.get(
       f'{_RTT_ENDPOINT}/service/{uid}/{yyyy}/{mm}/{dd}'
   ) as response:
     if response.status == 200:
-      return uid, [
+      stations = [
           location['crs'] for location in (await response.json())['locations']
       ]
+      app.add_calling_at(uid, date, stations)
+      return uid, stations
   return uid, None
 
 
