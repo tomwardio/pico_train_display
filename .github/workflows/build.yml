@@ -41,7 +41,7 @@ jobs:
           ports/rp2/build-RPI_PICO_W/pico_train_display.uf2
         popd
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: pico_train_display
         path: micropython/ports/rp2/build-RPI_PICO_W/pico_train_display.uf2
