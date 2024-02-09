@@ -172,6 +172,12 @@ class DepartureWidget(Widget):
     self._status_font = status_font if status_font else font
     self._fast_train_icon = fast_train_icon
     self._max_clock_width = self._font.calculate_bounds('00:00')[0]
+    if self._fast_train_icon:
+      # How far to offset fast train icon from right-hand side.
+      self._fast_train_offset = self._fast_train_icon.max_bounds()[0] + max(
+          self._status_font.calculate_bounds('Exp 00:00')[0],
+          self._status_font.calculate_bounds('Cancelled')[0],
+      )
 
     self._last_departure = None
 
@@ -198,10 +204,7 @@ class DepartureWidget(Widget):
     departure_time = _time_to_str(departure.departure_time)
     self._font.render_text(departure_time, self._screen, x, y)
 
-    x += self._max_clock_width + 4
-    if departure.fast_train and self._fast_train_icon:
-      self._fast_train_icon.render_glyph(self._screen, x, y)
-      x += self._fast_train_icon.max_bounds()[0] + 2
+    x += self._max_clock_width + 2
     self._font.render_text(departure.destination, self._screen, x, y)
 
     if departure.cancelled:
@@ -215,6 +218,11 @@ class DepartureWidget(Widget):
       status_w, _ = self._status_font.calculate_bounds(status)
 
     self._status_font.render_text(status, self._screen, w - status_w, y)
+
+    if departure.fast_train and self._fast_train_icon:
+      self._fast_train_icon.render_glyph(
+          self._screen, w - self._fast_train_offset - 2, y
+      )
     return True
 
 
