@@ -31,7 +31,6 @@ import _thread
 import utils
 import logging
 
-
 _REQUEST_TIMEOUT = 10
 _MAXRESPONSE_SIZE = 40 * 1024
 _TOKEN_REFRESH_MARGIN = 60
@@ -318,12 +317,11 @@ def _get_service_ids(
     ssl_context: ssl.SSLContext | None = None,
 ) -> set[str]:
   """Returns uniqueIdentity set for services from station calling at destination."""
-  url = (
-      endpoint.rstrip('/')
-      + '/gb-nr/location?code={station}&filterTo={destination}'.format(
-          station=station,
-          destination=destination,
-      )
+  url = endpoint.rstrip(
+      '/'
+  ) + '/gb-nr/location?code={station}&filterTo={destination}'.format(
+      station=station,
+      destination=destination,
   )
   response = _http_request(
       url,
@@ -362,9 +360,12 @@ def get_departures(
     slow_stations: set[str] | None = None,
 ) -> Station:
   """Requests set of departures from->to provided stations."""
-  url = endpoint + '/gb-nr/location?code={station}&filterTo={destination}'.format(
-      station=station,
-      destination=destination,
+  url = (
+      endpoint
+      + '/gb-nr/location?code={station}&filterTo={destination}'.format(
+          station=station,
+          destination=destination,
+      )
   )
   response = _http_request(
       url,
@@ -403,10 +404,9 @@ def get_departures(
         or departure.get('realtimeEstimate')
         or scheduled_str
     )
-    cancelled = (
-        bool(departure.get('isCancelled'))
-        or temporal_data.get('displayAs') in ('CANCELLED', 'DIVERTED')
-    )
+    cancelled = bool(departure.get('isCancelled')) or temporal_data.get(
+        'displayAs'
+    ) in ('CANCELLED', 'DIVERTED')
 
     scheduled_utc = _parse_iso_datetime(scheduled_str)
     realtime_utc = (

@@ -43,7 +43,6 @@ import trains
 import utils
 import widgets
 
-
 _WIFI_CONNECT = 'Connecting'
 _LOADING_DEPARTURES = 'Loading train departures...'
 _DISPLAY_NOT_ACTIVE = 'Outside active hours, going to sleep...'
@@ -68,6 +67,7 @@ def _startup(screen: display.Display):
   widget.render()
   screen.flush()
   time.sleep_ms(500)
+
 
 def _connect(ssid: str, password: str, screen: display.Display) -> network.WLAN:
   widget = widgets.MessageWidget(screen, _WIFI_CONNECT, fonts.DEFAULT_FONT)
@@ -125,23 +125,27 @@ class _ScreenState:
   NON_ACTIVE = micropython.const(1)
   ACTIVE = micropython.const(2)
 
+
 _bootsel_first_press_ms = -1
 
-def _check_bootsel(timer):
-    del timer
-    global _bootsel_first_press_ms
 
-    pressed = rp2.bootsel_button()
-    if pressed:
-      now = time.ticks_ms()
-      if _bootsel_first_press_ms < 0:
-        _bootsel_first_press_ms = now
-      elif time.ticks_diff(now, _bootsel_first_press_ms) > (_BOOTSEL_PRESSED_SECS * 1000):
-        logging.log('Reset detected, deleting config.json and restarting.')
-        os.remove('config.json')
-        machine.reset()
-    else:
-      _bootsel_first_press_ms = -1
+def _check_bootsel(timer):
+  del timer
+  global _bootsel_first_press_ms
+
+  pressed = rp2.bootsel_button()
+  if pressed:
+    now = time.ticks_ms()
+    if _bootsel_first_press_ms < 0:
+      _bootsel_first_press_ms = now
+    elif time.ticks_diff(now, _bootsel_first_press_ms) > (
+        _BOOTSEL_PRESSED_SECS * 1000
+    ):
+      logging.log('Reset detected, deleting config.json and restarting.')
+      os.remove('config.json')
+      machine.reset()
+  else:
+    _bootsel_first_press_ms = -1
 
 
 def _render_thread(
@@ -235,7 +239,9 @@ def run(config: config_module.Config):
     gc.threshold(gc.mem_free() // 4 + gc.mem_alloc())
 
     reset_timer = machine.Timer(-1)
-    reset_timer.init(period=50, mode=machine.Timer.PERIODIC, callback=_check_bootsel)
+    reset_timer.init(
+        period=50, mode=machine.Timer.PERIODIC, callback=_check_bootsel
+    )
 
     _startup(screen)
 

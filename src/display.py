@@ -21,7 +21,6 @@
 import framebuf
 import machine
 
-
 _DEFAULT_DISPLAY = 'ssd1322'
 
 

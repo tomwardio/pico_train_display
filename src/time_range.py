@@ -23,7 +23,6 @@ import time
 
 import micropython
 
-
 _ACTIVE_TIMES_REGEX = re.compile(r'(daily|weekdays|weekend):(\d+)-(\d+)$')
 
 

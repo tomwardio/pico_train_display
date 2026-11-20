@@ -18,7 +18,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """Collection of assets baked as Python modules.
 
-These can be optionally added as frozen modules to the Pico firmware, reducing 
+These can be optionally added as frozen modules to the Pico firmware, reducing
 RAM consumption."""
 
 from . import dot_matrix_regular

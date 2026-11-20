@@ -23,7 +23,6 @@ import fonts
 import glyphs
 import trains
 
-
 _WELCOME_TO = 'Welcome to'
 
 

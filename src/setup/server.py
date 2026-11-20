@@ -24,7 +24,6 @@ import re
 
 from setup import content
 
-
 # Basic regex to extract key, an optional sub-key, and optional type. Examples:
 # "foo" => key=foo, sub-key=None, type=None
 # "foo[bar] => key=foo, sub-key=bar, type=None"
