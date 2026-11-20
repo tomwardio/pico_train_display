@@ -1,5 +1,22 @@
 # Release Notes
 
+## v2.0.0
+
+This is a major update to support the new Realtime Trains API. See https://api-portal.rtt.io/ for details.
+
+### Added
+
+- Holding the bootsel button during startup will now clear the configuration, allowing users to re-configure witout flashing the device.
+
+### Changed
+
+- Updated to use new RTT API
+- Upgraded to MicroPython v1.29.0
+
+### Removed
+
+- Obsolete server component. This is no longer needed as we no longer need to use detailed responses to determine fast trains.
+
 ## v1.1.0
 
 - Added optional supoprt for "slow stations".
