@@ -64,38 +64,43 @@ class SSD1322(display.Display):
     self._reset()
 
     # fmt: off
-    self.write_cmd(0xFD, 0x12)        # Unlock IC
-    self.write_cmd(0xA4)              # Display off (all pixels off)
-    self.write_cmd(0xB3, 0x91)        # Display divide clockratio/freq
-    self.write_cmd(0xCA, 0x3F)        # Set MUX ratio
-    self.write_cmd(0xA2, 0x00)        # Display offset
-    self.write_cmd(0xA1, 0x00)        # Display start Line
+    self.write_cmd(0xFD, 0x12)              # Unlock IC
+    self.write_cmd(0xA4)                    # Display off (all pixels off)
+    self.write_cmd(0xB3, 0x91)              # Display divide clockratio/freq
+    self.write_cmd(0xCA, self._height - 1)  # Set MUX ratio
+    self.write_cmd(0xA2, 0x00)              # Display offset
+    self.write_cmd(0xA1, 0x00)              # Display start Line
     arg = 0x06 if flip_display else 0x14
-    self.write_cmd(0xA0, arg, 0x11)   # Set remap & dual COM Line
-    self.write_cmd(0xB5, 0x00)        # Set GPIO (disabled)
-    self.write_cmd(0xAB, 0x01)        # Function select (internal Vdd)
-    self.write_cmd(0xB4, 0xA0, 0xFD)  # Display enhancement A (External VSL)
-    self.write_cmd(0xC1, 0x7F)        # Set contrast current (default)
-    self.write_cmd(0xC7, 0x0F)        # Master contrast (reset)
-    self.write_cmd(0xB9)              # Set default greyscale table
-    self.write_cmd(0xB1, 0xF0)        # Phase length
-    self.write_cmd(0xD1, 0x82, 0x20)  # Display enhancement B (reset)
-    self.write_cmd(0xBB, 0x0D)        # Pre-charge voltage
-    self.write_cmd(0xB6, 0x08)        # 2nd precharge period
-    self.write_cmd(0xBE, 0x00)        # Set VcomH
-    self.write_cmd(0xA6)              # Normal display (reset)
-    self.write_cmd(0xA9)              # Exit partial display
-    self.write_cmd(0xAF)              # Display on
+    self.write_cmd(0xA0, arg, 0x11)         # Set remap & dual COM Line
+    self.write_cmd(0xB5, 0x00)              # Set GPIO (disabled)
+    self.write_cmd(0xAB, 0x01)              # Function select (internal Vdd)
+    self.write_cmd(0xB4, 0xA0, 0xFD)        # Display enhancement A (ext VSL)
+    self.write_cmd(0xC1, 0x7F)              # Set contrast current (default)
+    self.write_cmd(0xC7, 0x0F)              # Master contrast (reset)
+    self.write_cmd(0xB9)                    # Set default greyscale table
+    self.write_cmd(0xB1, 0xF0)              # Phase length (P2=14, P1=5 DCLK)
+    self.write_cmd(0xD1, 0xA2, 0x20)        # Display enhancement B (reset)
+    self.write_cmd(0xBB, 0x1F)              # Pre-charge voltage (0.60 x Vcc)
+    self.write_cmd(0xB6, 0x08)              # 2nd precharge period (reset)
+    self.write_cmd(0xBE, 0x07)              # Set VcomH (0.86 x Vcc)
+    self.write_cmd(0xA6)                    # Normal display (reset)
+    self.write_cmd(0xA9)                    # Exit partial display
     # fmt: on
 
     self.fill(0)
     self.flush()
 
+    self.write_cmd(0xAF)  # Display on
+    time.sleep_ms(200)  # Wait tAF (200ms) for SEG/COM to turn on
+
   def _reset(self):
+    # Wait for VCI/VDDIO and internal VDD to stabilize (t0 >= 1ms).
+    time.sleep_ms(1)
     self.rst(0)
     time.sleep_ms(50)
     self.rst(1)
-    time.sleep_ms(100)
+    # Datasheet 8.9: wait >= 300ms after VCI becomes stable before commands.
+    time.sleep_ms(250)
 
   @property
   def width(self) -> int:

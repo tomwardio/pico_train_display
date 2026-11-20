@@ -198,10 +198,7 @@ def run(config: config_module.Config):
         config.station,
         config.destination,
         config.rtt.endpoint,
-        trains.make_basic_auth(
-            username=config.rtt.username,
-            password=config.rtt.password,
-        ),
+        config.rtt.token,
         slow_stations=slow_stations,
         min_departure_time=config.min_departure_time,
     )
@@ -270,14 +267,7 @@ async def _setup_access_point():
   ap.active(True)
   logging.log('Creating AP wifi with SSID: {}', _SETUP_WIFI_SSID)
 
-  for _ in range(_CONNECT_TIMEOUT):
-    if ap.isconnected():
-      return ap
-    await asyncio.sleep(1)
-
-  raise OSError(
-      'Failed to setup wifi access point in {} secs'.format(_CONNECT_TIMEOUT)
-  )
+  return ap
 
 
 async def setup(screen: display.Display):

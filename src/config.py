@@ -25,12 +25,9 @@ import time_range
 class RttConfig:
   """Real-time trains configuration."""
 
-  def __init__(
-      self, endpoint: str, username: str, password: str, update_interval: int
-  ):
+  def __init__(self, endpoint: str, token: str, update_interval: int):
     self.endpoint = endpoint
-    self.username = username
-    self.password = password
+    self.token = token
     self.update_interval = update_interval
 
   def validate(self):

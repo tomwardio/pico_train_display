@@ -18,7 +18,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """Module for communicating with RTT API."""
 
-import binascii
 import collections
 import errno
 import json
@@ -30,41 +29,45 @@ import time
 import _thread
 
 import utils
+import logging
 
 
 _REQUEST_TIMEOUT = 10
 _MAXRESPONSE_SIZE = 40 * 1024
+_TOKEN_REFRESH_MARGIN = 60
 
 
-def _calculate_departure_datetime(service) -> int:
-  """Utility to calculate the full datetime in seconds.
+def _parse_iso_datetime(dt: str) -> int:
+  """Parses an ISO 8601 / RFC3339 datetime string into UTC epoch seconds."""
+  yyyy = int(dt[0:4])
+  month = int(dt[5:7])
+  dd = int(dt[8:10])
+  hh = int(dt[11:13])
+  mm = int(dt[14:16])
+  ss = int(dt[17:19])
 
-  Because RTT only provides the service's origin date and not the date at the
-  requested station, we have to calculate the date based on this origin date.
+  tz_offset = 0
+  rest = dt[19:]
+  if rest.startswith('.'):
+    i = 1
+    while i < len(rest) and '0' <= rest[i] <= '9':
+      i += 1
+    rest = rest[i:]
 
-  We assume that services do not run for > 24hrs.
-  """
-  yyyy, month, dd = map(int, service['runDate'].split('-'))
+  if rest and rest != 'Z' and rest != 'z':
+    sign = 1 if rest[0] == '+' else -1
+    tz_parts = rest[1:].replace(':', '')
+    tz_hh = int(tz_parts[0:2])
+    tz_mm = int(tz_parts[2:4]) if len(tz_parts) >= 4 else 0
+    tz_offset = sign * (tz_hh * 3600 + tz_mm * 60)
 
-  location = service['locationDetail']
-  departure_time = int(location['gbttBookedDeparture'])
-  if location.get('cancelReasonCode') is not None:
-    departure_time = int(location.get('realtimeDeparture', departure_time))
+  return int(time.mktime((yyyy, month, dd, hh, mm, ss, 0, 0, 0))) - tz_offset
 
-  hh, mm = divmod(departure_time, 100)
 
-  origin_hh, origin_mm = divmod(int(location['origin'][0]['publicTime']), 100)
-  full_origin_departure_datetime = time.mktime(
-      (yyyy, month, dd, origin_hh, origin_mm, 0, 0, 0)
-  )
-
-  full_departure_datetime = time.mktime((yyyy, month, dd, hh, mm, 0, 0, 0))
-  if full_departure_datetime < full_origin_departure_datetime:
-    # Iff we've wrapped around into the next day, add 24hrs to the departure
-    # datetime.
-    full_departure_datetime += 24 * 60 * 60  # 24hrs
-
-  return full_departure_datetime
+def _utc_to_uk_hhmm(utc_seconds: int) -> int:
+  """Converts UTC epoch seconds to a UK local time HHMM integer."""
+  uk_time = utils.get_uk_time(utc_seconds)
+  return uk_time[3] * 100 + uk_time[4]
 
 
 # TODO: Make this a dataclass when MicroPython supports it.
@@ -93,16 +96,10 @@ class Response:
     )
 
 
-def make_basic_auth(username: str, password: str):
-  auth = '{}:{}'.format(username, password)
-  auth = str(binascii.b2a_base64(auth)[:-1], 'ascii')
-  return auth
-
-
 def _http_request(
     url: str,
     *,
-    basic_auth: str | None = None,
+    bearer_token: str | None = None,
     timeout: int | None = None,
     buffer: memoryview | None = None,
     ssl_context: ssl.SSLContext | None = None,
@@ -154,8 +151,8 @@ def _http_request(
 
     s.write('GET /{} HTTP/1.0\r\n'.format(path))
     s.write('Host: {}\r\n'.format(host))
-    if basic_auth is not None:
-      s.write('Authorization: Basic {}\r\n'.format(basic_auth))
+    if bearer_token is not None:
+      s.write('Authorization: Bearer {}\r\n'.format(bearer_token))
     s.write('Connection: close\r\n\r\n')
 
     http_status = s.readline().split(None, 2)
@@ -172,7 +169,7 @@ def _http_request(
         break
       if header.startswith(b'Location:') and not 200 <= status <= 299:
         if status in [301, 302, 303, 307, 308]:
-          redirect = str(header[10:-2], 'utf-8')
+          redirect = str(header[9:].strip(), 'utf-8')
         else:
           raise NotImplementedError('Redirect %d not yet supported!' % status)
       else:
@@ -187,17 +184,19 @@ def _http_request(
 
   if redirect is not None:
     s.close()
-    _http_request(
+    return _http_request(
         redirect,
-        basic_auth=basic_auth,
+        bearer_token=bearer_token,
         timeout=timeout,
         buffer=buffer,
         ssl_context=ssl_context,
     )
 
   try:
-    if buffer is not None:
-      content_length = int(headers.get('Content-Length', -1))
+    if status == 204:
+      content = b''
+    elif buffer is not None:
+      content_length = int(headers.get('content-length', -1))
       if content_length > -1 and len(buffer) < content_length:
         raise ValueError(
             'Content length > buffer! Content-length: {} Buffer {}'.format(
@@ -205,7 +204,7 @@ def _http_request(
             )
         )
       else:
-        length = s.readinto(buffer)
+        length = s.readinto(buffer) or 0
         content = buffer[:length]
     else:
       content = s.read()
@@ -279,10 +278,82 @@ class Departure:
 Station = collections.namedtuple('Station', ('name', 'departures'))
 
 
+def get_access_token(
+    refresh_token: str,
+    endpoint: str,
+    *,
+    buffer: memoryview | None = None,
+    ssl_context: ssl.SSLContext | None = None,
+) -> tuple[str, int]:
+  """Requests a short-lived bearer access token using a refresh token."""
+  url = endpoint.rstrip('/') + '/api/get_access_token'
+  response = _http_request(
+      url,
+      bearer_token=refresh_token,
+      timeout=_REQUEST_TIMEOUT,
+      buffer=buffer,
+      ssl_context=ssl_context,
+  )
+  if response.status_code != 200:
+    raise ValueError(
+        'Error getting access token! {}'.format(response.status_code)
+    )
+
+  response_json = json.loads(response.content)
+  token = response_json['token']
+  valid_until_str = response_json.get('validUntil')
+  valid_until = _parse_iso_datetime(valid_until_str) if valid_until_str else 0
+  del response_json
+  gc.collect()
+  return token, valid_until
+
+
+def _get_service_ids(
+    station: str,
+    destination: str,
+    bearer_token: str,
+    endpoint: str,
+    *,
+    buffer: memoryview | None = None,
+    ssl_context: ssl.SSLContext | None = None,
+) -> set[str]:
+  """Returns uniqueIdentity set for services from station calling at destination."""
+  url = (
+      endpoint.rstrip('/')
+      + '/gb-nr/location?code={station}&filterTo={destination}'.format(
+          station=station,
+          destination=destination,
+      )
+  )
+  response = _http_request(
+      url,
+      bearer_token=bearer_token,
+      timeout=_REQUEST_TIMEOUT,
+      buffer=buffer,
+      ssl_context=ssl_context,
+  )
+  if response.status_code == 204:
+    return set()
+  if response.status_code == 401:
+    raise ValueError('Unauthorized getting departure! 401')
+  if response.status_code != 200:
+    raise ValueError('Error getting departure! {}'.format(response.status_code))
+
+  response_json = json.loads(response.content)
+  service_ids = set()
+  for service in response_json.get('services') or []:
+    uid = (service.get('scheduleMetadata') or {}).get('uniqueIdentity')
+    if uid:
+      service_ids.add(uid)
+  del response_json
+  gc.collect()
+  return service_ids
+
+
 def get_departures(
     station: str,
     destination: str,
-    basic_auth: str,
+    bearer_token: str,
     endpoint: str,
     *,
     min_departure_time: int = 0,
@@ -291,65 +362,108 @@ def get_departures(
     slow_stations: set[str] | None = None,
 ) -> Station:
   """Requests set of departures from->to provided stations."""
-  url = endpoint + '/search/{station}/to/{destination}'.format(
+  url = endpoint + '/gb-nr/location?code={station}&filterTo={destination}'.format(
       station=station,
       destination=destination,
   )
   response = _http_request(
       url,
-      basic_auth=basic_auth,
+      bearer_token=bearer_token,
       timeout=_REQUEST_TIMEOUT,
       buffer=buffer,
       ssl_context=ssl_context,
   )
+  if response.status_code == 204:
+    return Station(station, [])
+  if response.status_code == 401:
+    raise ValueError('Unauthorized getting departure! 401')
   if response.status_code != 200:
     raise ValueError('Error getting departure! {}'.format(response.status_code))
+
+  limit = response.headers.get('x-ratelimit-limit-minute', -1)
+  remaining = response.headers.get('x-ratelimit-remaining-minute', -1)
+  logging.log('Rate limit {}/min, remaining: {}'.format(limit, remaining))
 
   # TODO: JSON decoding allocates a lot of small objects, which can put pressure
   # on memory fragmentation. Might be worth writing custom parsing of content.
   response_json = json.loads(response.content)
-  services = response_json['services']
-  services = [] if services is None else services
+  services = response_json.get('services') or []
 
-  departures = []
+  results = []
   for service in services:
-    location = service['locationDetail']
+    temporal_data = service.get('temporalData') or {}
+    departure = temporal_data.get('departure')
+    if not departure or not departure.get('scheduleAdvertised'):
+      continue
 
-    # Iff the service is cancelled, service['destination'] is populated. 
-    # Otherwise use location['destination'].
-    destinations = service.get('destination', location['destination'])
-    # We could have multiple destinations, so concatentate them together.
-    destination = ','.join([d['description'] for d in destinations])
-    departure_time = int(location['gbttBookedDeparture'])
-    realtime_departure = int(location.get('realtimeDeparture', departure_time))
-    cancelled = location.get('cancelReasonCode') is not None
-
-    if min_departure_time > 0:
-      full_departure_datetime = _calculate_departure_datetime(service)
-      now = time.mktime(utils.get_uk_time())
-      if now + (min_departure_time * 60) > full_departure_datetime:
-        continue
-
-    fast_train = False
-    calling_stations = set(service.get('callingAt', None))
-    if slow_stations and calling_stations:
-      if len(calling_stations.intersection(slow_stations)) == 0:
-        fast_train = True
-
-    departures.append(
-        Departure(
-            destination,
-            departure_time,
-            realtime_departure,
-            cancelled,
-            fast_train,
-        )
+    scheduled_str = departure['scheduleAdvertised']
+    realtime_str = (
+        departure.get('realtimeActual')
+        or departure.get('realtimeForecast')
+        or departure.get('realtimeEstimate')
+        or scheduled_str
+    )
+    cancelled = (
+        bool(departure.get('isCancelled'))
+        or temporal_data.get('displayAs') in ('CANCELLED', 'DIVERTED')
     )
 
-  results = Station(response_json['location']['name'], departures)
+    scheduled_utc = _parse_iso_datetime(scheduled_str)
+    realtime_utc = (
+        _parse_iso_datetime(realtime_str)
+        if realtime_str != scheduled_str
+        else scheduled_utc
+    )
+
+    if min_departure_time > 0:
+      effective_utc = scheduled_utc if cancelled else realtime_utc
+      if time.time() + (min_departure_time * 60) > effective_utc:
+        continue
+
+    departure_time = _utc_to_uk_hhmm(scheduled_utc)
+    realtime_departure = _utc_to_uk_hhmm(realtime_utc)
+
+    # We could have multiple destinations, so concatenate them together.
+    destinations = service.get('destination') or []
+    dest_name = ','.join([d['location']['description'] for d in destinations])
+    uid = (service.get('scheduleMetadata') or {}).get('uniqueIdentity')
+
+    results.append(
+        (uid, dest_name, departure_time, realtime_departure, cancelled)
+    )
+
+  station_name = (
+      response_json.get('query', {}).get('location', {}).get('description')
+      or station
+  )
   del response_json
-  gc.collect()  # Explicitly delete and GC JSON objects.
-  return results
+  gc.collect()  # Explicitly delete and GC JSON objects before reusing buffer.
+
+  slow_service_ids = set()
+  if slow_stations and results:
+    for slow_station in slow_stations:
+      slow_service_ids.update(
+          _get_service_ids(
+              station,
+              slow_station,
+              bearer_token,
+              endpoint,
+              buffer=buffer,
+              ssl_context=ssl_context,
+          )
+      )
+
+  departures = [
+      Departure(
+          dest_name,
+          departure_time,
+          realtime_departure,
+          cancelled,
+          bool(slow_stations and uid and uid not in slow_service_ids),
+      )
+      for uid, dest_name, departure_time, realtime_departure, cancelled in results
+  ]
+  return Station(station_name, departures)
 
 
 class DepartureUpdater:
@@ -360,7 +474,7 @@ class DepartureUpdater:
       station: str,
       destination: str,
       endpoint: str,
-      auth: str,
+      token: str,
       min_departure_time: int,
       *,
       slow_stations: set[str] | None = None,
@@ -368,7 +482,9 @@ class DepartureUpdater:
     self._station = station
     self._destination = destination
     self._endpoint = endpoint
-    self._auth = auth
+    self._refresh_token = token
+    self._access_token = None
+    self._token_valid_until = 0
     self._min_departure_time = min_departure_time
     self._slow_stations = slow_stations
 
@@ -378,12 +494,27 @@ class DepartureUpdater:
     self._memoryview = memoryview(self._buffer)
     self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
+  def _get_access_token(self, force: bool = False) -> str:
+    if (
+        force
+        or self._access_token is None
+        or time.time() >= self._token_valid_until - _TOKEN_REFRESH_MARGIN
+    ):
+      self._access_token, self._token_valid_until = get_access_token(
+          self._refresh_token,
+          self._endpoint,
+          buffer=self._memoryview,
+          ssl_context=self._ssl_context,
+      )
+    return self._access_token
+
   def update(self):
     """Updates the set of departures for a given station."""
+    access_token = self._get_access_token()
     departures = get_departures(
         self._station,
         self._destination,
-        self._auth,
+        access_token,
         self._endpoint,
         slow_stations=self._slow_stations,
         min_departure_time=self._min_departure_time,

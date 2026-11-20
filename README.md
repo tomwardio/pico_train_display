@@ -5,7 +5,7 @@ departure times. It is designed to run on a
 [Raspberry Pi Pico W](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 microcontroller, with an SSD1322-based 256x64 SPI OLED display.
 
-This project uses [Realtime Trains API](https://api.rtt.io/) as its data source,
+This project uses [Realtime Trains API](https://api-portal.rtt.io/) as its data source,
 and is heavily inspired by [several other projects](#credits).
 
 ![completed display](docs/images/completed.png)

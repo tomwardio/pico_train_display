@@ -21,16 +21,16 @@
 import time
 
 
-def get_uk_time() -> tuple[int, ...]:
+def get_uk_time(now: int | None = None) -> tuple[int, ...]:
   """Calculate UK time, taking into account daylight savings."""
-  year = time.localtime()[0]
+  now = now or time.time()
+  year = time.localtime(now)[0]
   bst_start = time.mktime(
       (year, 3, 31 - ((5 * year // 4 + 4) % 7), 1, 0, 0, 0, 0, 0)
   )
   bst_end = time.mktime(
       (year, 10, 31 - ((5 * year // 4 + 1) % 7), 1, 0, 0, 0, 0, 0)
   )
-  now = time.time()
   if now >= bst_start and now < bst_end:
     return time.localtime(now + 3600)
   else:
